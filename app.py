@@ -50,9 +50,38 @@ with st.sidebar:
     c2.metric("Sources", len(sources))
 
     if sources:
-        with st.expander("Indexed sources"):
+        with st.expander(f"Manage sources ({len(sources)})"):
             for s in sources:
-                st.caption(s if len(s) < 60 else f"...{s[-57:]}")
+                label = s if len(s) < 40 else f"...{s[-37:]}"
+                col_name, col_btn = st.columns([3, 1])
+                col_name.caption(label)
+                if col_btn.button("🗑️", key=f"del_{s}", help=f"Delete '{s}'"):
+                    st.session_state["confirm_delete"] = s
+
+            st.divider()
+            if st.button("🗑️ Clear all sources", type="secondary", use_container_width=True):
+                st.session_state["confirm_delete"] = "__ALL__"
+
+    # ── Confirm deletion ──────────────────────────────────────────────────────
+    target = st.session_state.get("confirm_delete")
+    if target:
+        if target == "__ALL__":
+            st.warning("Delete **all** chunks from MongoDB?")
+        else:
+            label = target if len(target) < 50 else f"...{target[-47:]}"
+            st.warning(f"Delete all chunks for **{label}**?")
+
+        c_yes, c_no = st.columns(2)
+        if c_yes.button("Yes, delete", type="primary", use_container_width=True):
+            if target == "__ALL__":
+                collection.delete_many({})
+            else:
+                collection.delete_many({"source": target})
+            del st.session_state["confirm_delete"]
+            st.rerun()
+        if c_no.button("Cancel", use_container_width=True):
+            del st.session_state["confirm_delete"]
+            st.rerun()
 
     st.divider()
     with st.expander("Config"):
