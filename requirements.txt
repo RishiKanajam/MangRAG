@@ -1,0 +1,12 @@
+dnspython
+google-genai
+ipykernel
+langchain
+langchain-community
+langchain-google-genai
+langchain-openai
+openai
+pymongo
+pypdf
+python-dotenv
+vertexai
