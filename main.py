@@ -24,9 +24,8 @@ def cmd_ingest(source: str) -> None:
 
 
 def cmd_ask(user_query: str) -> None:
-    col = get_collection()
     print(f"\nQuestion: {user_query}\n")
-    answer, docs = query.run(user_query, col)
+    answer, docs = query.run(user_query)
     print(f"Answer:\n{answer}\n")
     print("Sources:")
     for d in docs:

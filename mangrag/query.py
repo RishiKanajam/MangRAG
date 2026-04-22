@@ -1,40 +1,22 @@
 import logging
-from pymongo.collection import Collection
 
 from .config import settings
 from .embeddings import embed
 from .llm import generate
+from .retrieval.index import get_retriever
 
 logger = logging.getLogger(__name__)
 
 
-def retrieve(query: str, collection: Collection, top_k: int | None = None) -> list[dict]:
+def retrieve(query: str, top_k: int | None = None) -> list[dict]:
     top_k = top_k or settings.top_k
     logger.info("Retrieving top %d chunks for query: %r", top_k, query)
 
-    pipeline = [
-        {
-            "$vectorSearch": {
-                "index": settings.index_name,
-                "queryVector": embed(query),
-                "path": "embedding",
-                "numCandidates": settings.num_candidates,
-                "limit": top_k,
-            }
-        },
-        {
-            "$project": {
-                "_id": 0,
-                "content": 1,
-                "source": 1,
-                "page": 1,
-                "score": {"$meta": "vectorSearchScore"},
-            }
-        },
-    ]
+    query_embedding = embed(query)
+    retriever = get_retriever()
+    docs = retriever.retrieve(query, query_embedding, top_k=top_k)
 
-    docs = list(collection.aggregate(pipeline))
-    logger.info("Retrieved %d chunks", len(docs))
+    logger.info("Retrieved %d chunks (hybrid FAISS+BM25)", len(docs))
     return docs
 
 
@@ -64,11 +46,7 @@ Answer:"""
     return generate(prompt)
 
 
-def run(
-    query: str,
-    collection: Collection,
-    top_k: int | None = None,
-) -> tuple[str, list[dict]]:
-    docs = retrieve(query, collection, top_k=top_k)
+def run(query: str, top_k: int | None = None) -> tuple[str, list[dict]]:
+    docs = retrieve(query, top_k=top_k)
     answer = build_answer(query, docs)
     return answer, docs

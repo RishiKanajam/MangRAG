@@ -24,5 +24,8 @@ class Settings(BaseSettings):
     top_k: int = 5
     num_candidates: int = 150
 
+    # Domain — set to any subject area; used in API descriptions and prompts
+    domain_description: str = "general"
+
 
 settings = Settings()

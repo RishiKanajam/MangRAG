@@ -10,10 +10,13 @@ from mangrag import ingest, query
 from mangrag.config import settings
 from mangrag.db import get_collection, ensure_vector_index
 from mangrag.embeddings import get_model
+from mangrag.retrieval.index import get_retriever
+from mangrag import eval as rag_eval
 from mangrag.models import (
     IngestRequest, IngestResponse,
     QueryRequest, QueryResponse, RetrievedChunk,
     StatsResponse, HealthResponse,
+    EvaluateRequest, EvaluateResponse,
 )
 
 logging.basicConfig(
@@ -27,6 +30,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Starting MangRAG API — pre-loading embedding model...")
     get_model()
+    logger.info("Building hybrid FAISS+BM25 index from MongoDB...")
+    get_retriever()
     logger.info("Ready")
     yield
     logger.info("Shutting down")
@@ -34,8 +39,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="MangRAG API",
-    description="RAG pipeline backed by MongoDB Atlas Vector Search + Groq",
-    version="1.0.0",
+    description="RAG pipeline with hybrid FAISS+BM25 retrieval + Groq LLM",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -92,8 +97,7 @@ def ingest_document(req: IngestRequest):
 def query_document(req: QueryRequest):
     logger.info("Query: %r (top_k=%d)", req.query, req.top_k)
     try:
-        col = get_collection()
-        answer, docs = query.run(req.query, col, top_k=req.top_k)
+        answer, docs = query.run(req.query, top_k=req.top_k)
         chunks = [
             RetrievedChunk(
                 content=d["content"],
@@ -106,4 +110,22 @@ def query_document(req: QueryRequest):
         return QueryResponse(query=req.query, answer=answer, chunks=chunks)
     except Exception as e:
         logger.exception("Query failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/evaluate", response_model=EvaluateResponse, tags=["evaluation"])
+def evaluate(req: EvaluateRequest):
+    """Run precision@k and faithfulness evaluation for a single query."""
+    logger.info("Evaluate: %r (k=%d)", req.query, req.k)
+    try:
+        result = rag_eval.evaluate(req.query, req.relevant_texts, k=req.k)
+        return EvaluateResponse(
+            query=result['query'],
+            precision_at_k=result[f'precision@{req.k}'],
+            faithfulness=result['faithfulness'],
+            answer=result['answer'],
+            retrieved_count=result['retrieved_count'],
+        )
+    except Exception as e:
+        logger.exception("Evaluation failed")
         raise HTTPException(status_code=500, detail=str(e))

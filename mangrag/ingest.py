@@ -61,8 +61,11 @@ def run(
     collection: Collection,
     on_progress: ProgressCallback | None = None,
 ) -> int:
+    from .retrieval.index import rebuild_retriever
+
     pages = load_pdf(source)
     chunks = chunk_documents(pages)
     count = embed_and_store(chunks, collection, source, on_progress=on_progress)
     ensure_vector_index(collection)
+    rebuild_retriever()
     return count

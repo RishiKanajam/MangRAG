@@ -37,3 +37,17 @@ class HealthResponse(BaseModel):
     status: str
     mongodb: str
     embeddings: str
+
+
+class EvaluateRequest(BaseModel):
+    query: str = Field(..., min_length=1)
+    relevant_texts: list[str] = Field(..., description="Reference passages a correct answer should cover")
+    k: int = Field(default=5, ge=1, le=20)
+
+
+class EvaluateResponse(BaseModel):
+    query: str
+    precision_at_k: float
+    faithfulness: float
+    answer: str
+    retrieved_count: int
